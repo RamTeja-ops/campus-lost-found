@@ -1,11 +1,13 @@
 import { useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 function Login() {
   const [role, setRole] = useState("student");
   const [rollNumber, setRollNumber] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
+  const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -21,8 +23,21 @@ function Login() {
         payload
       );
 
+      // Save token
       localStorage.setItem("token", res.data.token);
-      alert("Login Successful!");
+
+      // Save role
+      localStorage.setItem("role", role);
+
+      // Save display name (important for navbar)
+      if (role === "student") {
+        localStorage.setItem("displayName", rollNumber);
+      } else {
+        localStorage.setItem("displayName", name);
+      }
+
+      navigate("/dashboard");
+
     } catch (error) {
       alert("Login Failed");
     }
@@ -91,7 +106,7 @@ function Login() {
           <p className="text-center mt-3">
             Don't have an account?{" "}
             <a href="/signup" className="text-decoration-none">
-                Signup
+              Signup
             </a>
           </p>
 

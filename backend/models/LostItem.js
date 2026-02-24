@@ -9,6 +9,7 @@ const lostItemSchema = new mongoose.Schema(
 
     description: {
       type: String,
+      required: true,
     },
 
     location: {
@@ -16,18 +17,24 @@ const lostItemSchema = new mongoose.Schema(
       required: true,
     },
 
+    dateFound: {
+      type: Date,
+      required: true,
+    },
+
     image: {
-      type: String, // for now just store image path or URL
+      type: String, // will store image filename
+      required: true,
+    },
+
+    facultyMediator: {
+      type: String, // required only if student submits
     },
 
     submittedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
-    },
-
-    facultyMediator: {
-      type: String, // name of faculty (only if student submitted)
     },
 
     status: {

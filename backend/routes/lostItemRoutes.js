@@ -6,24 +6,57 @@ const { protect } = require("../middleware/authMiddleware");
 
 const Message = require("../models/Message");
 
+const upload = require("../config/multer");
+
 // ✅ Add Lost Item (Protected)
-router.post("/", protect, async (req, res) => {
-  try {
-    const { itemName, description, location, facultyMediator } = req.body;
+// Create Lost Item (With Image Upload)
+router.post(
+  "/",
+  protect,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      const { itemName, description, location, dateFound, facultyMediator } =
+        req.body;
 
-    const newItem = await LostItem.create({
-      itemName,
-      description,
-      location,
-      facultyMediator,
-      submittedBy: req.user._id,
-    });
+      // Validate required fields
+      if (!itemName || !description || !location || !dateFound) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
 
-    res.status(201).json(newItem);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+      // If student submits → facultyMediator required
+      if (req.user.role === "student" && !facultyMediator) {
+        return res.status(400).json({
+          message: "Faculty mediator is required for students",
+        });
+      }
+
+      // Image required
+      if (!req.file) {
+        return res.status(400).json({
+          message: "Image is required",
+        });
+      }
+
+      const newItem = new LostItem({
+        itemName,
+        description,
+        location,
+        dateFound,
+        facultyMediator:
+          req.user.role === "student" ? facultyMediator : null,
+        image: req.file.filename,
+        submittedBy: req.user._id,
+      });
+
+      const savedItem = await newItem.save();
+
+      res.status(201).json(savedItem);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
   }
-});
+);
 
 // ✅ Get All Lost Items
 router.get("/", async (req, res) => {

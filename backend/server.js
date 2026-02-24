@@ -7,6 +7,7 @@ const { protect } = require("./middleware/authMiddleware");
 const lostItemRoutes = require("./routes/lostItemRoutes");
 const messageRoutes = require("./routes/messageRoutes");
 
+
 dotenv.config();
 connectDB();
 
@@ -15,6 +16,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static("uploads"));
 app.use("/api/lostitems", lostItemRoutes);
 
 app.use("/api/auth", authRoutes);
