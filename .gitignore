@@ -1,4 +1,20 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment variables
 .env
-dist
-build
+
+# Build folders
+dist/
+build/
+
+# Uploaded images (VERY IMPORTANT)
+backend/uploads/
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

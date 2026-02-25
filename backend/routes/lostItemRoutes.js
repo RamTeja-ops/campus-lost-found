@@ -5,11 +5,11 @@ const LostItem = require("../models/LostItem");
 const { protect } = require("../middleware/authMiddleware");
 
 const Message = require("../models/Message");
+const User = require("../models/User");
 
 const upload = require("../config/multer");
 
 // ✅ Add Lost Item (Protected)
-// Create Lost Item (With Image Upload)
 router.post(
   "/",
   protect,
@@ -58,11 +58,11 @@ router.post(
   }
 );
 
-// ✅ Get All Lost Items
+// ✅ Get All Active Lost Items
 router.get("/", async (req, res) => {
   try {
     const items = await LostItem.find({ status: "active" })
-        .populate("submittedBy", "role name rollNumber");
+      .populate("submittedBy", "role name rollNumber");
 
     res.json(items);
   } catch (error) {
@@ -70,7 +70,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-// ✅ Resolve Item (Faculty Only)
+// ✅ Resolve Item (Faculty Only) + Award Points
 router.put("/:id/resolve", protect, async (req, res) => {
   try {
     if (req.user.role !== "faculty") {
@@ -81,6 +81,23 @@ router.put("/:id/resolve", protect, async (req, res) => {
 
     if (!item) {
       return res.status(404).json({ message: "Item not found" });
+    }
+
+    // ── Award points to the person who submitted the item ──
+    const submitter = await User.findById(item.submittedBy);
+
+    if (submitter) {
+      // Count how many items this user has resolved so far
+      const resolvedCount = await LostItem.countDocuments({
+        submittedBy: submitter._id,
+        status: "resolved",
+      });
+
+      // 1st to 5th resolved → 5 points, 6th onwards → 10 points
+      const pointsToAdd = resolvedCount < 5 ? 5 : 10;
+
+      submitter.points = (submitter.points || 0) + pointsToAdd;
+      await submitter.save();
     }
 
     // 🧹 Delete all messages related to this item
