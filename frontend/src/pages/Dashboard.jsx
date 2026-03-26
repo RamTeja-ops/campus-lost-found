@@ -18,6 +18,9 @@ function Dashboard() {
   const [rankings, setRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
 
+  const [dateFilter, setDateFilter] = useState("");
+  const [filteredItems, setFilteredItems] = useState([]);
+
   const messagesEndRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -30,6 +33,18 @@ function Dashboard() {
     fetchItems();
   }, []);
 
+  useEffect(() => {
+    if (dateFilter) {
+      setFilteredItems(
+        items.filter((item) => {
+          const itemDate = new Date(item.dateFound).toISOString().split("T")[0];
+          return itemDate === dateFilter;
+        }),
+      );
+    } else {
+      setFilteredItems(items);
+    }
+  }, [dateFilter, items]);
   // Auto-scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -52,7 +67,7 @@ function Dashboard() {
     try {
       const res = await axios.get(
         `http://localhost:5000/api/messages/${itemId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setMessages(res.data);
     } catch (error) {
@@ -104,7 +119,7 @@ function Dashboard() {
       await axios.post(
         `http://localhost:5000/api/messages/${selectedItem._id}`,
         { text: newMessage.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       setNewMessage("");
       await fetchMessages(selectedItem._id);
@@ -117,14 +132,19 @@ function Dashboard() {
 
   // ── Resolve item (faculty only) ───────────────────────────────
   const handleResolve = async () => {
-    if (!window.confirm("Mark this item as resolved? All chat messages will be deleted.")) return;
+    if (
+      !window.confirm(
+        "Mark this item as resolved? All chat messages will be deleted.",
+      )
+    )
+      return;
 
     setResolving(true);
     try {
       await axios.put(
         `http://localhost:5000/api/lostitems/${selectedItem._id}/resolve`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
 
       clearInterval(pollRef.current);
@@ -167,12 +187,9 @@ function Dashboard() {
 
   return (
     <div>
-
       {/* NAVBAR */}
       <nav className="navbar navbar-expand-lg navbar-dark bg-dark px-4">
-        <span className="navbar-brand fw-bold">
-          Campus Lost & Found
-        </span>
+        <span className="navbar-brand fw-bold">Campus Lost & Found</span>
 
         {/* CENTER MENU */}
         <div className="mx-auto d-flex gap-4 text-white">
@@ -222,6 +239,17 @@ function Dashboard() {
           <ul className="dropdown-menu dropdown-menu-end">
             <li>
               <button
+                className="dropdown-item"
+                onClick={() => navigate("/profile")}
+              >
+                👤 My Profile
+              </button>
+            </li>
+            <li>
+              <hr className="dropdown-divider" />
+            </li>
+            <li>
+              <button
                 className="dropdown-item text-danger"
                 onClick={handleLogout}
               >
@@ -238,8 +266,8 @@ function Dashboard() {
           <div className="container">
             <h5>About Campus Lost & Found</h5>
             <p>
-              This platform helps students and faculty report and recover
-              lost items across campus efficiently and securely.
+              This platform helps students and faculty report and recover lost
+              items across campus efficiently and securely.
             </p>
           </div>
         </div>
@@ -258,10 +286,39 @@ function Dashboard() {
 
       {/* MAIN CONTENT */}
       <div className="container mt-5">
-
         <h2 className="text-center mb-5 text-success fw-bold">
           Recently Lost Items
         </h2>
+        <div style={{ marginBottom: "16px" }}>
+          <label>
+            <strong>Filter by Date Found:</strong>
+          </label>
+
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            style={{
+              marginLeft: "8px",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              border: "1px solid #ccc",
+            }}
+          />
+
+          {dateFilter && (
+            <button
+              onClick={() => setDateFilter("")}
+              style={{
+                marginLeft: "8px",
+                padding: "4px 10px",
+                cursor: "pointer",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
 
         <div className="text-center mb-4">
           <button
@@ -274,8 +331,7 @@ function Dashboard() {
 
         <div className="row justify-content-center">
           <div className="col-lg-8">
-
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <div
                 key={item._id}
                 className="card shadow-sm mb-4"
@@ -285,7 +341,6 @@ function Dashboard() {
                 data-bs-target="#itemModal"
               >
                 <div className="row g-0">
-
                   {/* IMAGE SECTION */}
                   <div className="col-md-4">
                     <img
@@ -299,7 +354,6 @@ function Dashboard() {
                   {/* DETAILS SECTION */}
                   <div className="col-md-8">
                     <div className="card-body">
-
                       <div className="d-flex justify-content-between">
                         <h5 className="fw-bold">{item.itemName}</h5>
                         <span
@@ -335,14 +389,11 @@ function Dashboard() {
                         Submitted by:{" "}
                         {item.submittedBy?.rollNumber || item.submittedBy?.name}
                       </small>
-
                     </div>
                   </div>
-
                 </div>
               </div>
             ))}
-
           </div>
         </div>
       </div>
@@ -356,7 +407,6 @@ function Dashboard() {
       >
         <div className="modal-dialog modal-lg">
           <div className="modal-content">
-
             {selectedItem && (
               <>
                 {/* HEADER */}
@@ -382,7 +432,6 @@ function Dashboard() {
                 {/* BODY — two columns */}
                 <div className="modal-body p-0">
                   <div className="row g-0" style={{ minHeight: "420px" }}>
-
                     {/* LEFT — Item details */}
                     <div className="col-md-4 border-end p-3 bg-light d-flex flex-column">
                       <img
@@ -439,7 +488,6 @@ function Dashboard() {
 
                     {/* RIGHT — Chat */}
                     <div className="col-md-8 d-flex flex-column">
-
                       {/* Messages */}
                       <div
                         className="flex-grow-1 overflow-auto p-3"
@@ -466,7 +514,6 @@ function Dashboard() {
                                 }`}
                               >
                                 <div style={{ maxWidth: "75%" }}>
-
                                   {!isOwn && (
                                     <small className="text-muted d-block mb-1 ms-1">
                                       {msg.sender?.rollNumber ||
@@ -492,7 +539,6 @@ function Dashboard() {
                                   >
                                     {formatTime(msg.createdAt)}
                                   </small>
-
                                 </div>
                               </div>
                             );
@@ -529,7 +575,6 @@ function Dashboard() {
                           </button>
                         </form>
                       )}
-
                     </div>
                   </div>
                 </div>
@@ -547,25 +592,17 @@ function Dashboard() {
                     Close
                   </button>
                 </div>
-
               </>
             )}
-
           </div>
         </div>
       </div>
       {/* ── END CHAT MODAL ───────────────────────────────────────── */}
 
-
       {/* ── RANKINGS MODAL ──────────────────────────────────────── */}
-      <div
-        className="modal fade"
-        id="rankingsModal"
-        tabIndex="-1"
-      >
+      <div className="modal fade" id="rankingsModal" tabIndex="-1">
         <div className="modal-dialog modal-lg">
           <div className="modal-content">
-
             {/* HEADER */}
             <div className="modal-header bg-dark text-white">
               <h5 className="modal-title">🏆 Campus Rankings</h5>
@@ -578,7 +615,6 @@ function Dashboard() {
 
             {/* BODY */}
             <div className="modal-body p-0">
-
               {rankingsLoading ? (
                 <div className="text-center py-5">
                   <div className="spinner-border text-success" />
@@ -608,10 +644,10 @@ function Dashboard() {
                           index === 0
                             ? "table-warning fw-bold"
                             : index === 1
-                            ? "table-secondary fw-bold"
-                            : index === 2
-                            ? "table-danger fw-bold"
-                            : ""
+                              ? "table-secondary fw-bold"
+                              : index === 2
+                                ? "table-danger fw-bold"
+                                : ""
                         }
                       >
                         {/* Rank */}
@@ -650,13 +686,11 @@ function Dashboard() {
                             {user.points} pts
                           </span>
                         </td>
-
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
-
             </div>
 
             {/* FOOTER */}
@@ -671,12 +705,10 @@ function Dashboard() {
                 Close
               </button>
             </div>
-
           </div>
         </div>
       </div>
       {/* ── END RANKINGS MODAL ──────────────────────────────────── */}
-
     </div>
   );
 }

@@ -66,7 +66,7 @@ const login = async (req, res) => {
     if (role === "student") {
       user = await User.findOne({ rollNumber });
     } else if (role === "faculty") {
-      user = await User.findOne({ name });
+      user = await User.findOne({ name: new RegExp("^" + name + "$", "i") });
     }
 
     if (!user) {

@@ -61,7 +61,17 @@ router.post(
 // ✅ Get All Active Lost Items
 router.get("/", async (req, res) => {
   try {
-    const items = await LostItem.find({ status: "active" })
+    const { date } = req.query;
+    const filter = { status: "active" };
+
+    if (date) {
+      const start = new Date(date);
+      const end = new Date(date);
+      end.setDate(end.getDate() + 1);
+      filter.dateFound = { $gte: start, $lt: end };
+    }
+
+    const items = await LostItem.find(filter)
       .populate("submittedBy", "role name rollNumber");
 
     res.json(items);
