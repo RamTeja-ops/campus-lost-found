@@ -18,8 +18,15 @@ function Dashboard() {
   const [rankings, setRankings] = useState([]);
   const [rankingsLoading, setRankingsLoading] = useState(false);
 
-  const [dateFilter, setDateFilter] = useState("");
+  // ── Date filter state ─────────────────────────────────────────
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [filteredItems, setFilteredItems] = useState([]);
+
+  // ── Resolve modal state ───────────────────────────────────────
+  const [showResolveModal, setShowResolveModal] = useState(false);
+  const [chatParticipants, setChatParticipants] = useState([]);
+  const [selectedFinder, setSelectedFinder] = useState("");
 
   const messagesEndRef = useRef(null);
   const pollRef = useRef(null);
@@ -34,17 +41,21 @@ function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (dateFilter) {
+    if (fromDate || toDate) {
       setFilteredItems(
         items.filter((item) => {
           const itemDate = new Date(item.dateFound).toISOString().split("T")[0];
-          return itemDate === dateFilter;
+          if (fromDate && toDate)
+            return itemDate >= fromDate && itemDate <= toDate;
+          if (fromDate) return itemDate >= fromDate;
+          if (toDate) return itemDate <= toDate;
         }),
       );
     } else {
       setFilteredItems(items);
     }
-  }, [dateFilter, items]);
+  }, [fromDate, toDate, items]);
+
   // Auto-scroll to bottom when messages update
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,23 +141,63 @@ function Dashboard() {
     }
   };
 
-  // ── Resolve item (faculty only) ───────────────────────────────
-  const handleResolve = async () => {
-    if (
-      !window.confirm(
-        "Mark this item as resolved? All chat messages will be deleted.",
-      )
-    )
+  // ── Step 1: Build participants list → show resolve modal ──────
+  const handleResolveClick = () => {
+    // Get unique senders from chat messages
+    const senders = [];
+    const seenIds = new Set();
+
+    messages.forEach((msg) => {
+      const id = msg.sender?._id;
+      const label = msg.sender?.rollNumber || msg.sender?.name;
+      if (id && !seenIds.has(id)) {
+        seenIds.add(id);
+        senders.push({
+          _id: id,
+          label: label,
+          role: msg.sender?.role,
+        });
+      }
+    });
+
+    // Add faculty mediator if they haven't chatted yet
+    const mediatorAlreadyIn = senders.some(
+      (s) => s.label === selectedItem.facultyMediator
+    );
+    if (!mediatorAlreadyIn && selectedItem.facultyMediator) {
+      senders.push({
+        _id: "mediator_fallback_" + selectedItem.facultyMediator,
+        label: selectedItem.facultyMediator,
+        role: "faculty",
+        isFallback: true,
+      });
+    }
+
+    setChatParticipants(senders);
+    setSelectedFinder("");
+    setShowResolveModal(true);
+  };
+
+  // ── Step 2: Confirm resolve after faculty picks finder ────────
+  const handleResolveConfirm = async () => {
+    if (!selectedFinder) {
+      alert("Please select who found the item.");
       return;
+    }
 
     setResolving(true);
     try {
+      // If mediator fallback selected, send name instead of id
+      const isFallback = selectedFinder.startsWith("mediator_fallback_");
       await axios.put(
         `http://localhost:5000/api/lostitems/${selectedItem._id}/resolve`,
-        {},
+        isFallback
+          ? { foundByName: selectedItem.facultyMediator }
+          : { foundById: selectedFinder },
         { headers: { Authorization: `Bearer ${token}` } },
       );
 
+      setShowResolveModal(false);
       clearInterval(pollRef.current);
 
       // Close chat modal cleanly
@@ -154,7 +205,7 @@ function Dashboard() {
       modalEl.classList.remove("show");
       modalEl.style.display = "none";
       document.body.classList.remove("modal-open");
-      document.querySelector(".modal-backdrop")?.remove();
+      document.querySelectorAll(".modal-backdrop").forEach((el) => el.remove());
 
       setSelectedItem(null);
       setMessages([]);
@@ -289,34 +340,55 @@ function Dashboard() {
         <h2 className="text-center mb-5 text-success fw-bold">
           Recently Lost Items
         </h2>
-        <div style={{ marginBottom: "16px" }}>
-          <label>
-            <strong>Filter by Date Found:</strong>
-          </label>
 
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            style={{
-              marginLeft: "8px",
-              padding: "4px 8px",
-              borderRadius: "4px",
-              border: "1px solid #ccc",
-            }}
-          />
+        {/* DATE RANGE FILTER */}
+        <div
+          className="d-flex align-items-center gap-3 mb-4 p-3 rounded"
+          style={{ background: "#f8f9fa", border: "1px solid #dee2e6" }}
+        >
+          <span className="fw-bold text-muted">🗓️ Filter by Date:</span>
 
-          {dateFilter && (
+          <div className="d-flex align-items-center gap-2">
+            <label className="mb-0 text-muted small">From</label>
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              style={{ width: "160px" }}
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+            />
+          </div>
+
+          <span className="text-muted">→</span>
+
+          <div className="d-flex align-items-center gap-2">
+            <label className="mb-0 text-muted small">To</label>
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              style={{ width: "160px" }}
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+            />
+          </div>
+
+          {(fromDate || toDate) && (
             <button
-              onClick={() => setDateFilter("")}
-              style={{
-                marginLeft: "8px",
-                padding: "4px 10px",
-                cursor: "pointer",
+              className="btn btn-outline-secondary btn-sm"
+              onClick={() => {
+                setFromDate("");
+                setToDate("");
               }}
             >
-              Clear
+              ✕ Clear
             </button>
+          )}
+
+          {(fromDate || toDate) && (
+            <small className="text-muted ms-auto">
+              Showing {filteredItems.length} item
+              {filteredItems.length !== 1 ? "s" : ""}
+            </small>
           )}
         </div>
 
@@ -471,14 +543,14 @@ function Dashboard() {
                         {selectedItem.status}
                       </span>
 
-                      {/* Faculty resolve button — only assigned mediator or submitter */}
+                      {/* ── Faculty resolve button ── */}
                       {role === "faculty" &&
                         selectedItem.status === "active" &&
                         (selectedItem.facultyMediator === displayName ||
                           selectedItem.submittedBy?.name === displayName) && (
                           <button
                             className="btn btn-success btn-sm mt-auto"
-                            onClick={handleResolve}
+                            onClick={handleResolveClick}
                             disabled={resolving}
                           >
                             {resolving ? "Resolving…" : "✔ Mark as Resolved"}
@@ -650,10 +722,7 @@ function Dashboard() {
                                 : ""
                         }
                       >
-                        {/* Rank */}
                         <td className="fs-5">{getMedal(index)}</td>
-
-                        {/* Name */}
                         <td>
                           {user.rollNumber || user.name}
                           {(user.rollNumber === displayName ||
@@ -661,8 +730,6 @@ function Dashboard() {
                             <span className="badge bg-success ms-2">You</span>
                           )}
                         </td>
-
-                        {/* Category */}
                         <td>
                           <span
                             className={`badge ${
@@ -674,13 +741,9 @@ function Dashboard() {
                             {user.role === "faculty" ? "Faculty" : "Student"}
                           </span>
                         </td>
-
-                        {/* Resolved Items count */}
                         <td className="text-center fw-bold">
                           {user.resolvedCount}
                         </td>
-
-                        {/* Points */}
                         <td>
                           <span className="fw-bold text-success">
                             {user.points} pts
@@ -709,6 +772,134 @@ function Dashboard() {
         </div>
       </div>
       {/* ── END RANKINGS MODAL ──────────────────────────────────── */}
+
+      {/* ── RESOLVE CONFIRMATION MODAL ──────────────────────────── */}
+      {showResolveModal && (
+        <div
+          className="modal fade show d-block"
+          style={{ background: "rgba(0,0,0,0.6)", zIndex: 9999 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+
+              {/* HEADER */}
+              <div className="modal-header bg-success text-white">
+                <h5 className="modal-title">✔ Who Found This Item?</h5>
+                <button
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowResolveModal(false)}
+                />
+              </div>
+
+              {/* BODY */}
+              <div className="modal-body">
+                <p className="mb-1">
+                  <strong>Select the person who found this item.</strong>
+                </p>
+                <p className="text-muted small mb-3">
+                  Contribution points will be awarded to the person you select.
+                </p>
+
+                {chatParticipants.length === 0 ? (
+                  <div className="alert alert-warning mb-0">
+                    ⚠️ No chat participants found. Ask participants to send at
+                    least one message before resolving.
+                  </div>
+                ) : (
+                  <div className="d-flex flex-column gap-2">
+                    {chatParticipants.map((person) => (
+                      <label
+                        key={person._id}
+                        className="d-flex align-items-center gap-3 p-3 rounded"
+                        style={{
+                          border:
+                            selectedFinder === person._id
+                              ? "2px solid #198754"
+                              : "1px solid #dee2e6",
+                          background:
+                            selectedFinder === person._id
+                              ? "#f0fdf4"
+                              : "white",
+                          cursor: "pointer",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="finder"
+                          value={person._id}
+                          checked={selectedFinder === person._id}
+                          onChange={() => setSelectedFinder(person._id)}
+                        />
+                        <div className="d-flex align-items-center gap-2">
+                          {/* Avatar */}
+                          <div
+                            className="d-flex align-items-center justify-content-center rounded-circle text-white fw-bold"
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              fontSize: "0.9rem",
+                              background:
+                                person.role === "faculty" ? "#0d6efd" : "#198754",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {person.label?.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <span className="fw-bold">{person.label}</span>
+                            <span
+                              className={`badge ms-2 ${
+                                person.role === "faculty"
+                                  ? "bg-primary"
+                                  : "bg-warning text-dark"
+                              }`}
+                            >
+                              {person.role === "faculty" ? "Faculty" : "Student"}
+                            </span>
+                            {person.isFallback && (
+                              <span className="badge bg-secondary ms-1">
+                                Mediator
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* FOOTER */}
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowResolveModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-success"
+                  onClick={handleResolveConfirm}
+                  disabled={!selectedFinder || resolving || chatParticipants.length === 0}
+                >
+                  {resolving ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" />
+                      Resolving…
+                    </>
+                  ) : (
+                    "✔ Confirm & Award Points"
+                  )}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── END RESOLVE CONFIRMATION MODAL ──────────────────────── */}
+
     </div>
   );
 }

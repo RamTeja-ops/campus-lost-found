@@ -81,46 +81,41 @@ router.get("/", async (req, res) => {
 });
 
 // ✅ Resolve Item (Faculty Only) + Award Points
-router.put("/:id/resolve", protect, async (req, res) => {
+router.put('/:id/resolve', protect, async (req, res) => {
   try {
-    if (req.user.role !== "faculty") {
-      return res.status(403).json({ message: "Only faculty can resolve items" });
+    if (req.user.role !== 'faculty') {
+      return res.status(403).json({ message: 'Only faculty can resolve items' });
+    }
+
+    const { foundById } = req.body; // ← who actually found the item
+
+    if (!foundById) {
+      return res.status(400).json({ message: 'Please select who found the item' });
     }
 
     const item = await LostItem.findById(req.params.id);
+    if (!item) return res.status(404).json({ message: 'Item not found' });
 
-    if (!item) {
-      return res.status(404).json({ message: "Item not found" });
+    // Award points to the selected finder
+    const finder = await User.findById(foundById);
+    if (finder) {
+      const resolvedCount = finder.points > 0
+        ? Math.floor(finder.points / 5)
+        : 0;
+      finder.points += resolvedCount >= 5 ? 10 : 5;
+      await finder.save();
     }
 
-    // ── Award points to the person who submitted the item ──
-    const submitter = await User.findById(item.submittedBy);
-
-    if (submitter) {
-      // Count how many items this user has resolved so far
-      const resolvedCount = await LostItem.countDocuments({
-        submittedBy: submitter._id,
-        status: "resolved",
-      });
-
-      // 1st to 5th resolved → 5 points, 6th onwards → 10 points
-      const pointsToAdd = resolvedCount < 5 ? 5 : 10;
-
-      submitter.points = (submitter.points || 0) + pointsToAdd;
-      await submitter.save();
-    }
-
-    // 🧹 Delete all messages related to this item
-    await Message.deleteMany({ item: item._id });
+    // Delete all messages for this item
+    await Message.deleteMany({ item: req.params.id });
 
     // Mark item resolved
-    item.status = "resolved";
+    item.status = 'resolved';
     await item.save();
 
-    res.json({ message: "Item resolved and chat deleted" });
-
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.json({ message: 'Item resolved successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
