@@ -151,7 +151,7 @@ function AddLostItem() {
             type="submit"
             className="btn btn-success w-100"
             disabled={loading}
-          >
+          > 
             {loading ? "Uploading..." : "Add Item"}
           </button>
 
